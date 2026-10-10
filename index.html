@@ -23,11 +23,42 @@
   }
   #loader img { width: 96px; height: 96px; border-radius: 22px; }
   .spin { width: 32px; height: 32px; border: 3px solid rgba(255,255,255,.25);
-          border-top-color: #e94560; border-radius: 50%; animation: s 1s linear infinite; }
+          border-top-color: #7FD4E8; border-radius: 50%; animation: s 1s linear infinite; }
   @keyframes s { to { transform: rotate(360deg); } }
   #fallback { display: none; text-align: center; padding: 0 24px; }
   #fallback a { display: inline-block; margin-top: 12px; padding: 10px 20px;
-                background: #e94560; color: #fff; border-radius: 10px; text-decoration: none; }
+                background: #7FD4E8; color: #06121f; border-radius: 10px; text-decoration: none; font-weight: 700; }
+
+  /* ---------- نافذة تثبيت التطبيق ---------- */
+  #ip-backdrop {
+    position: fixed; inset: 0; z-index: 10; display: none;
+    background: rgba(3, 8, 16, .55);
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  }
+  #ip-sheet {
+    position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 11; display: none;
+    margin: 0 auto; max-width: 420px;
+    padding: 20px 18px calc(18px + env(safe-area-inset-bottom));
+    background: linear-gradient(160deg, #132238 0%, #0C1526 100%);
+    border: 1px solid rgba(127,212,232,.45); border-radius: 20px;
+    box-shadow: 0 0 0 1px rgba(127,212,232,.15), 0 18px 50px rgba(0,0,0,.55), 0 0 24px rgba(127,212,232,.18);
+    color: #E8EEF5; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    transform: translateY(20px); opacity: 0; transition: transform .28s ease, opacity .28s ease;
+  }
+  #ip-sheet.show { transform: translateY(0); opacity: 1; }
+  .ip-head { display: flex; align-items: center; gap: 14px; }
+  .ip-head img { width: 58px; height: 58px; border-radius: 14px; flex: 0 0 58px; }
+  .ip-title { font-size: 1.12rem; font-weight: 800; margin: 0 0 2px; }
+  .ip-sub { font-size: .9rem; color: #8CA0B8; margin: 0; line-height: 1.45; }
+  .ip-steps { margin: 16px 0 4px; padding: 12px 14px; list-style: none;
+              background: rgba(127,212,232,.07); border-radius: 12px; font-size: .92rem; line-height: 1.9; }
+  .ip-steps b { color: #7FD4E8; }
+  .ip-actions { display: flex; gap: 10px; margin-top: 16px; }
+  .ip-btn { flex: 1; min-height: 46px; border-radius: 12px; font-size: .98rem; font-weight: 700;
+            font-family: inherit; cursor: pointer; border: 1px solid transparent; }
+  .ip-primary { background: #7FD4E8; color: #06121f; box-shadow: 0 0 16px rgba(127,212,232,.35); }
+  .ip-ghost { background: transparent; color: #8CA0B8; border-color: rgba(158,196,214,.3); flex: 0 0 34%; }
+  .ip-hidden { display: none; }
 </style>
 </head>
 <body>
@@ -42,6 +73,22 @@
 
 <iframe id="app" title="A Studio PM"
   allow="clipboard-write; fullscreen"></iframe>
+
+<div id="ip-backdrop"></div>
+<div id="ip-sheet" role="dialog" aria-modal="true" aria-labelledby="ip-title">
+  <div class="ip-head">
+    <img src="icon-192.png" alt="">
+    <div>
+      <p class="ip-title" id="ip-title">ثبّت تطبيق A Studio PM</p>
+      <p class="ip-sub" id="ip-sub">افتح النظام من أيقونة على شاشتك، بشاشة كاملة وبسرعة.</p>
+    </div>
+  </div>
+  <ol class="ip-steps ip-hidden" id="ip-steps"></ol>
+  <div class="ip-actions">
+    <button class="ip-btn ip-primary" id="ip-ok" type="button">تثبيت</button>
+    <button class="ip-btn ip-ghost" id="ip-later" type="button">إلغاء</button>
+  </div>
+</div>
 
 <script>
   // رابط تطبيق Google Apps Script — غيّره هون فقط عند الحاجة
@@ -71,6 +118,117 @@
       navigator.serviceWorker.register("sw.js").catch(function () {});
     });
   }
+
+  /* ---------- نافذة التثبيت ---------- */
+  (function () {
+    var HIDE_DAYS = 3;
+    var KEY = "astudio_install_dismissed";
+    var ua = navigator.userAgent || "";
+    var isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    var isAndroid = /Android/i.test(ua);
+    var isSamsung = /SamsungBrowser/i.test(ua);
+    var isChrome = /Chrome\//i.test(ua) && !isSamsung && !/EdgA?\/|OPR\/|FBAN|FBAV|Instagram/i.test(ua);
+    var isStandalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+                       window.navigator.standalone === true;
+
+    var backdrop = document.getElementById("ip-backdrop");
+    var sheet = document.getElementById("ip-sheet");
+    var sub = document.getElementById("ip-sub");
+    var steps = document.getElementById("ip-steps");
+    var okBtn = document.getElementById("ip-ok");
+    var laterBtn = document.getElementById("ip-later");
+    var deferredPrompt = null;
+    var shown = false;
+
+    function dismissedRecently() {
+      try {
+        var t = parseInt(localStorage.getItem(KEY) || "0", 10);
+        return t && (Date.now() - t) < HIDE_DAYS * 86400000;
+      } catch (e) { return false; }
+    }
+    function rememberDismiss() {
+      try { localStorage.setItem(KEY, String(Date.now())); } catch (e) {}
+    }
+    function setSteps(lines) {
+      steps.innerHTML = "";
+      for (var i = 0; i < lines.length; i++) {
+        var li = document.createElement("li");
+        li.innerHTML = lines[i];
+        steps.appendChild(li);
+      }
+      steps.className = "ip-steps";
+    }
+    function open() {
+      if (shown) return;
+      shown = true;
+      backdrop.style.display = "block";
+      sheet.style.display = "block";
+      setTimeout(function () { sheet.className = "show"; }, 20);
+    }
+    function close(remember) {
+      if (remember) rememberDismiss();
+      sheet.className = "";
+      setTimeout(function () { sheet.style.display = "none"; backdrop.style.display = "none"; }, 280);
+    }
+
+    laterBtn.addEventListener("click", function () { close(true); });
+    backdrop.addEventListener("click", function () { close(true); });
+
+    if (isStandalone || dismissedRecently()) return;
+
+    // Chrome (أندرويد وكمبيوتر): نافذة التثبيت الرسمية
+    window.addEventListener("beforeinstallprompt", function (e) {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (isSamsung) return; // سامسونج بنوجهه لـ Chrome تحت
+      okBtn.textContent = "تثبيت";
+      okBtn.onclick = function () {
+        if (!deferredPrompt) { close(false); return; }
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(function (choice) {
+          deferredPrompt = null;
+          close(choice && choice.outcome !== "accepted");
+        });
+      };
+      setTimeout(open, 800);
+    });
+
+    window.addEventListener("appinstalled", function () { close(false); });
+
+    // آيفون: ما في نافذة رسمية، بنعرض الخطوات
+    if (isIOS) {
+      sub.textContent = "بخطوتين بتصير عندك أيقونة على الشاشة الرئيسية.";
+      setSteps([
+        "اضغط زر <b>المشاركة</b> تحت بالمتصفح (مربع وسهم لفوق)",
+        "اختار <b>إضافة إلى الشاشة الرئيسية</b> ثم <b>إضافة</b>"
+      ]);
+      okBtn.textContent = "فهمت";
+      okBtn.onclick = function () { close(true); };
+      setTimeout(open, 800);
+      return;
+    }
+
+    // أندرويد بمتصفح غير Chrome (سامسونج وغيره): بنفتح الرابط بـ Chrome
+    if (isAndroid && !isChrome) {
+      var chromeIntent = "intent://" + location.host + location.pathname +
+        "#Intent;scheme=https;package=com.android.chrome;" +
+        "S.browser_fallback_url=" + encodeURIComponent("https://play.google.com/store/apps/details?id=com.android.chrome") + ";end";
+      var triedKey = "astudio_chrome_tried";
+      var tried = false;
+      try { tried = sessionStorage.getItem(triedKey) === "1"; sessionStorage.setItem(triedKey, "1"); } catch (e) {}
+
+      // محاولة تلقائية مرة وحدة: يفتح Chrome لحاله
+      if (!tried) {
+        setTimeout(function () { location.href = chromeIntent; }, 300);
+      }
+
+      // إذا المتصفح منع الفتح التلقائي، بيطلع الزر كخطة بديلة
+      sub.textContent = "للتثبيت الآمن، افتح الرابط من متصفح Chrome.";
+      okBtn.textContent = "افتح في Chrome";
+      okBtn.onclick = function () { location.href = chromeIntent; };
+      setTimeout(open, 1800);
+    }
+  })();
 </script>
 </body>
 </html>

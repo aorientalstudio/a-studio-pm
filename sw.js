@@ -1,5 +1,5 @@
 // Service worker: يخزّن غلاف التطبيق فقط. بيانات النظام تضل على Google Apps Script.
-var CACHE = "astudiopm-shell-v3";
+var CACHE = "astudiopm-shell-v6";
 var SHELL = [
   "./",
   "index.html",
