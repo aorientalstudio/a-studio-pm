@@ -1,12 +1,12 @@
 // Service worker: يخزّن غلاف التطبيق فقط. بيانات النظام تضل على Google Apps Script.
-var CACHE = "astudiopm-shell-v2";
+var CACHE = "astudiopm-shell-v3";
 var SHELL = [
   "./",
   "index.html",
   "offline.html",
   "manifest.json",
-  "icons/icon-192.png",
-  "icons/icon-512.png"
+  "icon-192.png",
+  "icon-512.png"
 ];
 
 self.addEventListener("install", function (e) {
