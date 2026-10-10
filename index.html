@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A Studio PM</title>
+<meta name="theme-color" content="#0f1e2e">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="A Studio PM">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #0f1e2e; overflow: hidden; }
+  #app { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+  #loader {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px;
+    background: #0f1e2e; color: #fff; font-family: system-ui, sans-serif; z-index: 2;
+    transition: opacity .3s;
+  }
+  #loader img { width: 96px; height: 96px; border-radius: 22px; }
+  .spin { width: 32px; height: 32px; border: 3px solid rgba(255,255,255,.25);
+          border-top-color: #e94560; border-radius: 50%; animation: s 1s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  #fallback { display: none; text-align: center; padding: 0 24px; }
+  #fallback a { display: inline-block; margin-top: 12px; padding: 10px 20px;
+                background: #e94560; color: #fff; border-radius: 10px; text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="loader">
+  <img src="icons/icon-192.png" alt="">
+  <div class="spin" id="spin"></div>
+  <div id="fallback">
+    <div>التحميل بطيء أو في مشكلة بالاتصال</div>
+    <a id="direct" href="#" target="_blank" rel="noopener">افتح النظام مباشرة</a>
+  </div>
+</div>
+
+<iframe id="app" title="A Studio PM"
+  allow="clipboard-write; fullscreen"></iframe>
+
+<script>
+  // رابط تطبيق Google Apps Script — غيّره هون فقط عند الحاجة
+  var GAS_URL = "https://script.google.com/macros/s/AKfycbycFmtVkWLs1Vt2koH7-4DeHk8j9IYtoFFRYmCRwI2wBTUwOeloI0S967xlWNyxRLuJ/exec";
+
+  var frame = document.getElementById("app");
+  var loader = document.getElementById("loader");
+  document.getElementById("direct").href = GAS_URL;
+
+  frame.addEventListener("load", function () {
+    loader.style.opacity = "0";
+    setTimeout(function () { loader.style.display = "none"; }, 300);
+  });
+
+  // إذا ما تحمّل خلال 20 ثانية، بنعرض زر فتح مباشر
+  setTimeout(function () {
+    if (loader.style.display !== "none") {
+      document.getElementById("spin").style.display = "none";
+      document.getElementById("fallback").style.display = "block";
+    }
+  }, 20000);
+
+  frame.src = GAS_URL;
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+</script>
+</body>
+</html>
